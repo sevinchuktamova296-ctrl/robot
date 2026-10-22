@@ -1,99 +1,192 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot">
 
+    <!-- ============================================================
+          REAL TANK MEASUREMENTS (all in METRES)
+         ============================================================ -->
+    <xacro:property name="track_length"     value="0.195"/>
+    <xacro:property name="track_width"      value="0.04"/>
+    <xacro:property name="track_height"     value="0.065"/>
+    <xacro:property name="track_separation" value="0.16"/>
+
+    <xacro:property name="body_length"      value="0.21"/>
+    <xacro:property name="body_width"       value="0.115"/>
+    <xacro:property name="body_height"      value="0.055"/>
+    <xacro:property name="ground_clearance" value="0.02"/>
+    <xacro:property name="body_mass"        value="1.0"/>
+
+    <!-- Calculated from the numbers above. Do not edit. -->
+    <xacro:property name="wheel_radius"     value="${track_height/2}"/>
+    <xacro:property name="skid_radius"      value="0.012"/>
+    <xacro:property name="body_z"           value="${-wheel_radius + ground_clearance + body_height/2}"/>
+    <xacro:property name="body_top_z"       value="${-wheel_radius + ground_clearance + body_height}"/>
+
+    <!-- ===== Colours ===== -->
     <material name="blue"><color rgba="0.2 0.4 0.9 1"/></material>
     <material name="black"><color rgba="0.1 0.1 0.1 1"/></material>
     <material name="red"><color rgba="0.9 0.2 0.2 1"/></material>
     <material name="gray"><color rgba="0.6 0.6 0.6 1"/></material>
+    <material name="dark"><color rgba="0.15 0.15 0.15 1"/></material>
 
-    <!-- BODY -->
+    <!-- ===== Helper macros for inertia ===== -->
+    <xacro:macro name="box_inertia" params="m x y z">
+        <inertia ixx="${m*(y*y+z*z)/12}" ixy="0" ixz="0"
+                 iyy="${m*(x*x+z*z)/12}" iyz="0"
+                 izz="${m*(x*x+y*y)/12}"/>
+    </xacro:macro>
+
+    <xacro:macro name="cylinder_inertia" params="m r h">
+        <inertia ixx="${m*(3*r*r+h*h)/12}" ixy="0" ixz="0"
+                 iyy="${m*(3*r*r+h*h)/12}" iyz="0"
+                 izz="${m*r*r/2}"/>
+    </xacro:macro>
+
+    <!-- ===== BODY ===== -->
     <link name="base_link">
         <visual>
-            <origin xyz="0 0 0.05"/>
-            <geometry><box size="0.3 0.2 0.1"/></geometry>
-            <material name="blue"/>
+            <origin xyz="0 0 ${body_z}"/>
+            <geometry><box size="${body_length} ${body_width} ${body_height}"/></geometry>
+            <material name="gray"/>
         </visual>
         <collision>
-            <origin xyz="0 0 0.05"/>
-            <geometry><box size="0.3 0.2 0.1"/></geometry>
+            <origin xyz="0 0 ${body_z}"/>
+            <geometry><box size="${body_length} ${body_width} ${body_height}"/></geometry>
         </collision>
         <inertial>
-            <origin xyz="0 0 0.05"/>
-            <mass value="0.5"/>
-            <inertia ixx="0.002083" ixy="0" ixz="0" iyy="0.004167" iyz="0" izz="0.005417"/>
+            <origin xyz="0 0 ${body_z}"/>
+            <mass value="${body_mass}"/>
+            <xacro:box_inertia m="${body_mass}" x="${body_length}" y="${body_width}" z="${body_height}"/>
+        </inertial>
+
+        <!-- post that holds the lidar above the body (visual only) -->
+        <visual>
+            <origin xyz="0 0 ${body_top_z + 0.025}"/>
+            <geometry><cylinder radius="0.01" length="0.05"/></geometry>
+            <material name="black"/>
+        </visual>
+    </link>
+
+    <!-- ===== SKIDS (two small frictionless balls, front and back) ===== -->
+    <joint name="front_skid_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="front_skid"/>
+        <origin xyz="${track_length/2 - 0.03} 0 ${-wheel_radius + skid_radius}"/>
+    </joint>
+
+    <link name="front_skid">
+        <visual>
+            <geometry><sphere radius="${skid_radius}"/></geometry>
+            <material name="gray"/>
+        </visual>
+        <collision>
+            <geometry><sphere radius="${skid_radius}"/></geometry>
+        </collision>
+        <inertial>
+            <mass value="0.02"/>
+            <inertia ixx="1.2e-6" ixy="0" ixz="0" iyy="1.2e-6" iyz="0" izz="1.2e-6"/>
         </inertial>
     </link>
 
-    <!-- LEFT WHEEL -->
+    <joint name="back_skid_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="back_skid"/>
+        <origin xyz="${-(track_length/2 - 0.03)} 0 ${-wheel_radius + skid_radius}"/>
+    </joint>
+
+    <link name="back_skid">
+        <visual>
+            <geometry><sphere radius="${skid_radius}"/></geometry>
+            <material name="gray"/>
+        </visual>
+        <collision>
+            <geometry><sphere radius="${skid_radius}"/></geometry>
+        </collision>
+        <inertial>
+            <mass value="0.02"/>
+            <inertia ixx="1.2e-6" ixy="0" ixz="0" iyy="1.2e-6" iyz="0" izz="1.2e-6"/>
+        </inertial>
+    </link>
+    <!-- ===== DRIVE WHEELS (hidden inside the tracks) ===== -->
     <joint name="left_wheel_joint" type="continuous">
         <parent link="base_link"/>
         <child link="left_wheel"/>
-        <origin xyz="0 0.12 0" rpy="-1.5708 0 0"/>
+        <origin xyz="0 ${track_separation/2} 0" rpy="-1.5708 0 0"/>
         <axis xyz="0 0 1"/>
     </joint>
 
     <link name="left_wheel">
         <visual>
-            <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+            <geometry><cylinder radius="${wheel_radius}" length="${track_width}"/></geometry>
             <material name="black"/>
         </visual>
         <collision>
-            <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+            <geometry><cylinder radius="${wheel_radius}" length="${track_width}"/></geometry>
         </collision>
         <inertial>
-            <mass value="0.05"/>
-            <inertia ixx="0.0000379" ixy="0" ixz="0" iyy="0.0000379" iyz="0" izz="0.0000625"/>
+            <mass value="0.1"/>
+            <xacro:cylinder_inertia m="0.1" r="${wheel_radius}" h="${track_width}"/>
         </inertial>
     </link>
 
-    <!-- RIGHT WHEEL -->
     <joint name="right_wheel_joint" type="continuous">
         <parent link="base_link"/>
         <child link="right_wheel"/>
-        <origin xyz="0 -0.12 0" rpy="1.5708 0 0"/>
+        <origin xyz="0 ${-track_separation/2} 0" rpy="1.5708 0 0"/>
         <axis xyz="0 0 -1"/>
     </joint>
 
     <link name="right_wheel">
         <visual>
-            <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+            <geometry><cylinder radius="${wheel_radius}" length="${track_width}"/></geometry>
             <material name="black"/>
         </visual>
         <collision>
-            <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+            <geometry><cylinder radius="${wheel_radius}" length="${track_width}"/></geometry>
         </collision>
         <inertial>
-            <mass value="0.05"/>
-            <inertia ixx="0.0000379" ixy="0" ixz="0" iyy="0.0000379" iyz="0" izz="0.0000625"/>
+            <mass value="0.1"/>
+            <xacro:cylinder_inertia m="0.1" r="${wheel_radius}" h="${track_width}"/>
         </inertial>
     </link>
 
-    <!-- CASTER WHEEL -->
-    <joint name="caster_wheel_joint" type="fixed">
-        <parent link="base_link"/>
-        <child link="caster_wheel"/>
-        <origin xyz="0.12 0 -0.02"/>
-    </joint>
+    <!-- ===== TRACKS (looks only, no collision) ===== -->
+    <xacro:macro name="track" params="name y">
+        <joint name="${name}_track_joint" type="fixed">
+            <parent link="base_link"/>
+            <child link="${name}_track"/>
+            <origin xyz="0 ${y} 0"/>
+        </joint>
 
-    <link name="caster_wheel">
-        <visual>
-            <geometry><sphere radius="0.03"/></geometry>
-            <material name="gray"/>
-        </visual>
-        <collision>
-            <geometry><sphere radius="0.03"/></geometry>
-        </collision>
-        <inertial>
-            <mass value="0.02"/>
-            <inertia ixx="0.0000072" ixy="0" ixz="0" iyy="0.0000072" iyz="0" izz="0.0000072"/>
-        </inertial>
-    </link>
+        <link name="${name}_track">
+            <visual>
+                <geometry><box size="${track_length - 2*wheel_radius} ${track_width} ${track_height}"/></geometry>
+                <material name="dark"/>
+            </visual>
+            <visual>
+                <origin xyz="${track_length/2 - wheel_radius} 0 0" rpy="1.5708 0 0"/>
+                <geometry><cylinder radius="${wheel_radius}" length="${track_width}"/></geometry>
+                <material name="dark"/>
+            </visual>
+            <visual>
+                <origin xyz="${-(track_length/2 - wheel_radius)} 0 0" rpy="1.5708 0 0"/>
+                <geometry><cylinder radius="${wheel_radius}" length="${track_width}"/></geometry>
+                <material name="dark"/>
+            </visual>
+            <inertial>
+                <mass value="0.001"/>
+                <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+            </inertial>
+        </link>
+    </xacro:macro>
 
-    <!-- CAMERA -->
+    <xacro:track name="left"  y="${track_separation/2}"/>
+    <xacro:track name="right" y="${-track_separation/2}"/>
+
+    <!-- ===== CAMERA (front, on top of the body) ===== -->
     <joint name="camera_joint" type="fixed">
         <parent link="base_link"/>
         <child link="camera_link"/>
-        <origin xyz="0.12 0 0.115"/>
+        <origin xyz="${body_length/2 - 0.02} 0 ${body_top_z + 0.02}"/>
     </joint>
 
     <link name="camera_link">
@@ -101,12 +194,9 @@
             <geometry><box size="0.03 0.06 0.03"/></geometry>
             <material name="red"/>
         </visual>
-        <collision>
-            <geometry><box size="0.03 0.06 0.03"/></geometry>
-        </collision>
         <inertial>
             <mass value="0.02"/>
-            <inertia ixx="0.0000075" ixy="0" ixz="0" iyy="0.000003" iyz="0" izz="0.0000075"/>
+            <xacro:box_inertia m="0.02" x="0.03" y="0.06" z="0.03"/>
         </inertial>
     </link>
 
@@ -118,34 +208,72 @@
 
     <link name="camera_link_optical"></link>
 
-    <!-- GAZEBO COLOURS -->
+    <!-- ===== LIDAR (RPLIDAR A1) ===== -->
+    <joint name="laser_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="laser_frame"/>
+        <origin xyz="0 0 ${body_top_z + 0.07}" rpy="0 0 0"/>
+    </joint>
+
+    <link name="laser_frame">
+        <visual>
+            <geometry><cylinder radius="0.048" length="0.04"/></geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <geometry><cylinder radius="0.048" length="0.04"/></geometry>
+        </collision>
+        <inertial>
+            <mass value="0.17"/>
+            <xacro:cylinder_inertia m="0.17" r="0.048" h="0.04"/>
+        </inertial>
+    </link>
+
+    <!-- ===== GAZEBO SETTINGS ===== -->
+    <!-- base_link only touches the ground with the two skids, so low friction here -->
     <gazebo reference="base_link">
-        <material>Gazebo/Blue</material>
-    </gazebo>
-
-    <gazebo reference="left_wheel">
-        <material>Gazebo/Black</material>
-    </gazebo>
-
-    <gazebo reference="right_wheel">
-        <material>Gazebo/Black</material>
-    </gazebo>
-
-    <gazebo reference="caster_wheel">
         <material>Gazebo/Grey</material>
-        <mu1 value="0.001"/>
-        <mu2 value="0.001"/>
+        <mu1>0.001</mu1>
+        <mu2>0.001</mu2>
     </gazebo>
 
-    <!-- DRIVE PLUGIN -->
+    <gazebo reference="front_skid">
+        <material>Gazebo/Grey</material>
+        <mu1>0.001</mu1>
+        <mu2>0.001</mu2>
+    </gazebo>
+
+    <gazebo reference="back_skid">
+        <material>Gazebo/Grey</material>
+        <mu1>0.001</mu1>
+        <mu2>0.001</mu2>
+    </gazebo>
+
+    <gazebo reference="left_track">
+        <material>Gazebo/DarkGrey</material>
+    </gazebo>
+
+    <gazebo reference="right_track">
+        <material>Gazebo/DarkGrey</material>
+    </gazebo>
+
+    <gazebo reference="camera_link">
+        <material>Gazebo/Red</material>
+    </gazebo>
+
+    <gazebo reference="laser_frame">
+        <material>Gazebo/Black</material>
+    </gazebo>
+
+    <!-- ===== DRIVE PLUGIN ===== -->
     <gazebo>
         <plugin name="diff_drive" filename="libgazebo_ros_diff_drive.so">
             <left_joint>left_wheel_joint</left_joint>
             <right_joint>right_wheel_joint</right_joint>
-            <wheel_separation>0.24</wheel_separation>
-            <wheel_diameter>0.1</wheel_diameter>
-            <max_wheel_torque>20</max_wheel_torque>
-            <max_wheel_acceleration>10.0</max_wheel_acceleration>
+            <wheel_separation>${track_separation}</wheel_separation>
+            <wheel_diameter>${2*wheel_radius}</wheel_diameter>
+            <max_wheel_torque>3</max_wheel_torque>
+            <max_wheel_acceleration>15.0</max_wheel_acceleration>
             <odometry_frame>odom</odometry_frame>
             <robot_base_frame>base_link</robot_base_frame>
             <publish_odom>true</publish_odom>
@@ -154,9 +282,8 @@
         </plugin>
     </gazebo>
 
-    <!-- CAMERA SENSOR -->
+    <!-- ===== CAMERA SENSOR ===== -->
     <gazebo reference="camera_link">
-        <material>Gazebo/Red</material>
         <sensor name="camera" type="camera">
             <pose>0 0 0 0 0 0</pose>
             <visualize>true</visualize>
@@ -165,8 +292,8 @@
                 <horizontal_fov>1.089</horizontal_fov>
                 <image>
                     <format>R8G8B8</format>
-                    <width>640</width>
-                    <height>480</height>
+                    <width>320</width>
+                    <height>240</height>
                 </image>
                 <clip>
                     <near>0.05</near>
@@ -178,29 +305,9 @@
             </plugin>
         </sensor>
     </gazebo>
-    <!-- LIDAR -->
-    <joint name="laser_joint" type="fixed">
-        <parent link="base_link"/>
-        <child link="laser_frame"/>
-        <origin xyz="-0.05 0 0.14" rpy="0 0 0"/>
-    </joint>
 
-    <link name="laser_frame">
-        <visual>
-            <geometry><cylinder radius="0.03" length="0.08"/></geometry>
-            <material name="black"/>
-        </visual>
-        <collision>
-            <geometry><cylinder radius="0.03" length="0.08"/></geometry>
-        </collision>
-        <inertial>
-            <mass value="0.05"/>
-            <inertia ixx="0.0000300" ixy="0" ixz="0" iyy="0.0000300" iyz="0" izz="0.0000225"/>
-        </inertial>
-    </link>
-
+    <!-- ===== LIDAR SENSOR (RPLIDAR A1: 0.15 m to 12 m) ===== -->
     <gazebo reference="laser_frame">
-        <material>Gazebo/Black</material>
         <sensor name="laser" type="ray">
             <pose>0 0 0 0 0 0</pose>
             <visualize>false</visualize>
@@ -227,4 +334,5 @@
             </plugin>
         </sensor>
     </gazebo>
+
 </robot>
