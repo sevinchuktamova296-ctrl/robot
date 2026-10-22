@@ -11,6 +11,7 @@ def generate_launch_description():
     pkg_path = get_package_share_directory('robot')
     xacro_file = os.path.join(pkg_path, 'description', 'robot.urdf.xacro')
     robot_description = xacro.process_file(xacro_file).toxml()
+    world_file = os.path.join(pkg_path, 'worlds', 'room.world')
 
     rsp = Node(
         package='robot_state_publisher',
@@ -22,7 +23,8 @@ def generate_launch_description():
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
-            get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')])
+            get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')]),
+        launch_arguments={'world': world_file}.items()
     )
 
     spawn = Node(
